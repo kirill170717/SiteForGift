@@ -97,7 +97,7 @@ test('build publishes ciphertext, excludes private input and cleans old output',
   });
   const sourceRoot = fileURLToPath(new URL('../', import.meta.url));
   for (const dir of ['assets', 'gifts', '.private', 'dist']) await mkdir(path.join(tempRoot, dir));
-  for (const file of ['index.html', 'styles.css', 'app.js', 'quest.js', 'gift-crypto.js', 'gift-vault.js', '.nojekyll', 'assets/favicon.svg']) await copyFile(path.join(sourceRoot, file), path.join(tempRoot, file));
+  for (const file of ['index.html', 'styles.css', 'app.js', 'quest.js', 'gift-crypto.js', 'gift-vault.js', 'email-template.js', 'delivery-client.js', '.nojekyll', 'assets/favicon.svg']) await copyFile(path.join(sourceRoot, file), path.join(tempRoot, file));
   await writeFile(path.join(tempRoot, '.private/card.json'), JSON.stringify(card));
   await writeFile(path.join(tempRoot, 'dist/old-secret.txt'), 'old output');
   const { envelope, fragment } = await encryptGift(card);

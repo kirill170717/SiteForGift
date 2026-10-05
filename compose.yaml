@@ -1,0 +1,32 @@
+services:
+  delivery:
+    build: .
+    restart: unless-stopped
+    env_file: .private/smtp.env
+    environment:
+      GIFT_SERVER_HOST: 0.0.0.0
+      GIFT_SERVER_PORT: 8787
+      GIFT_DATA_DIR: /data/deliveries
+    volumes:
+      - ./.private/deliveries:/data/deliveries
+    expose:
+      - "8787"
+    security_opt:
+      - no-new-privileges:true
+  https:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      GIFT_API_HOST: ${GIFT_API_HOST:?Set the public DNS name of the API server}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - delivery
+volumes:
+  caddy_data:
+  caddy_config:

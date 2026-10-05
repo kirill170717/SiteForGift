@@ -1,12 +1,12 @@
 import { CONFIG, STEP_NAMES, STORAGE_KEY, readProgress, writeProgress, normalizeCode } from './quest.js';
-import { getGiftAccess, loadPrivateGift } from './gift-vault.js';
+import { parseDeliveryLink, normalizeEmail, createDeliveryClient } from './delivery-client.js';
+import { renderGiftEmail } from './email-template.js';
 import { escapeMarkup } from './gift-crypto.js';
 
 const $ = (selector) => document.querySelector(selector);
-const giftAccess = getGiftAccess();
+const giftAccess = parseDeliveryLink(location.hash);
 const progressKey = giftAccess.mode === 'demo' ? STORAGE_KEY : `${STORAGE_KEY}:${giftAccess.access?.id ?? 'invalid'}`;
 let currentStep = readProgress(undefined, progressKey);
-let revealedCard = null;
 let renderVersion = 0;
 let soundEnabled = false;
 let audio;
@@ -59,7 +59,6 @@ function heading(icon, title, description) {
 
 function render(focus = false) {
   renderVersion += 1;
-  revealedCard = null;
   clearInterval(scanTimer);
   $('#intro').hidden = currentStep !== -1;
   $('#quest').hidden = currentStep < 0 || currentStep > 5;
@@ -152,60 +151,99 @@ function startScan() {
 
 async function renderFinal(focus) {
   const version = renderVersion;
-  if (giftAccess.mode === 'demo') {
-    showCard({ amount: CONFIG.amount, cardNumber: CONFIG.cardNumber, pin: CONFIG.pin, demo: true }, focus);
+  $('#final').innerHTML = '<div class="eyebrow" style="justify-content:center">МИССИЯ ВЫПОЛНЕНА</div><h1 id="final-title" tabindex="-1">Сюрприз — <span class="serif">на почту.</span></h1><p class="final-description" role="status">Готовим последний шаг…</p>';
+  if (focus) $('#final-title').focus();
+  if (giftAccess.mode === 'invalid') {
+    showDeliveryError('Нужна новая личная ссылка от отправителя. Эта ссылка не подходит для получения PDF.');
     return;
   }
-  $('#final').innerHTML = `<div class="eyebrow" style="justify-content:center">ТВОЙ ЛИЧНЫЙ ПОДАРОК</div><h1 id="final-title" tabindex="-1">Открываем <span class="serif">сюрприз.</span></h1><p class="final-description" role="status">Проверяем личную ссылку…</p>`;
-  if (focus) $('#final-title').focus();
-  try {
-    const card = await loadPrivateGift(giftAccess.access);
-    if (version !== renderVersion || currentStep !== 6) return;
-    showCard(card, focus);
-  } catch {
-    if (version !== renderVersion || currentStep !== 6) return;
-    $('#final').innerHTML = `<div class="eyebrow" style="justify-content:center">ЛИЧНЫЙ ПОДАРОК</div><h1 id="final-title" tabindex="-1">Нужна <span class="serif">твоя ссылка.</span></h1><p class="final-description" role="alert">Подарок не удалось открыть. Проверь интернет и полную личную ссылку из сообщения отправителя.</p><button class="primary" id="retry-gift" type="button">Попробовать ещё раз <span aria-hidden="true">↗</span></button><p class="hint">Если ссылка потерялась или повреждена, попроси отправителя прислать её заново.</p>`;
-    $('#retry-gift').addEventListener('click', () => renderFinal(true));
-    if (focus) $('#final-title').focus();
+  let client = null;
+  let preview = renderGiftEmail();
+  if (giftAccess.mode === 'private') {
+    try {
+      client = await createDeliveryClient(giftAccess.access);
+      const result = await client.status();
+      if (version !== renderVersion || currentStep !== 6) return;
+      preview = result.preview;
+      if (result.status === 'not_configured') { showDeliveryError('Отправитель ещё подключает доставку подарка. Открой личную ссылку позже.'); return; }
+      if (result.status === 'sent') { showDeliverySuccess(result.recipient); return; }
+      if (result.status !== 'ready') { showDeliveryError('Статус отправки уточняется. Проверь почту или обратись к отправителю подарка.'); return; }
+    } catch (error) {
+      if (version !== renderVersion || currentStep !== 6) return;
+      showDeliveryError(error.message === 'NOT_CONFIGURED' ? 'Отправитель ещё подключает доставку подарка. Личная ссылка сохранится — открой её позже.' : 'Не удалось открыть подарок. Проверь интернет и полную личную ссылку от отправителя.');
+      return;
+    }
   }
+  showDeliveryForm(client, preview, focus);
 }
 
-function showCard(card, focus) {
-  revealedCard = card;
-  const stamp = card.demo ? 'DEMO / НЕ ДЛЯ ОПЛАТЫ' : 'ТВОЙ ЛИЧНЫЙ ПОДАРОК';
-  const note = card.demo ? 'Тестовая подарочная карта<br>Для репетиции самого приятного момента' : 'Подарочная карта<br>Выбери что-то, что порадует именно тебя';
-  const hint = card.demo ? 'Это демонстрация подарка, а не действующий сертификат магазина. Номер и PIN вымышлены. Оплатить покупки ими нельзя.' : 'Сохрани карту и PIN для себя. Условия использования подарочной карты уточняй у магазина.';
-  $('#final').innerHTML = `<div class="eyebrow" style="justify-content:center"><span class="status-dot"></span> МИССИЯ ВЫПОЛНЕНА</div><h1 id="final-title" tabindex="-1">А теперь — <span class="serif">для себя.</span></h1><p class="final-description">Пусть это будет что-то, от чего загорятся глаза.<br>Ты заслуживаешь приятных вещей. Просто потому, что ты — это ты.</p><div class="certificate"><div class="certificate-top"><span class="certificate-brand">ЗОЛОТОЕ<br>ЯБЛОКО</span><span class="test-stamp">${stamp}</span></div><div class="certificate-value">${escapeMarkup(card.amount)} ₽</div><div class="certificate-note">${note}</div><div class="certificate-code"><span>Номер карты</span><code>${escapeMarkup(card.cardNumber)}</code></div><div class="certificate-code"><span>${card.demo ? 'Тестовый PIN' : 'PIN'}</span><code>${escapeMarkup(card.pin)}</code></div></div><div class="final-actions"><button class="primary" id="copy" type="button">Скопировать номер <span aria-hidden="true">↗</span></button><button class="secondary" id="download" type="button">${card.demo ? 'Сохранить демо-карту' : 'Сохранить карту'} ↓</button></div><p class="feedback" id="final-feedback" role="status"></p><p class="hint">${hint}</p>`;
-  $('#copy').addEventListener('click', async () => {
+function showDeliveryError(message) {
+  $('#final').innerHTML = `<div class="eyebrow" style="justify-content:center">ЛИЧНЫЙ ПОДАРОК</div><h1 id="final-title" tabindex="-1">Подарок <span class="serif">подождёт.</span></h1><p class="final-description" role="alert">${escapeMarkup(message)}</p><button class="primary" id="retry-gift" type="button">Проверить ещё раз <span aria-hidden="true">↗</span></button>`;
+  $('#retry-gift').addEventListener('click', () => renderFinal(true));
+}
+
+function showDeliverySuccess(recipient) {
+  $('#final').innerHTML = `<div class="eyebrow" style="justify-content:center"><span class="status-dot"></span> ПОДАРОК В ПУТИ</div><h1 id="final-title" tabindex="-1">Проверь <span class="serif">почту.</span></h1><p class="final-description">Письмо с PDF принято почтовым сервисом для ${escapeMarkup(recipient)}.<br>Если его нет во входящих, проверь папку «Спам».</p><div class="mail-icon" aria-hidden="true">✉</div><p class="hint">Сохрани вложение. Это твоя подарочная карта «Золотого яблока».</p>`;
+  $('#final-title').focus();
+  celebrate();
+}
+
+function showDeliveryForm(client, preview, focus) {
+  const demo = !client;
+  $('#final').innerHTML = `<div class="eyebrow" style="justify-content:center"><span class="status-dot"></span> МИССИЯ ВЫПОЛНЕНА</div><h1 id="final-title" tabindex="-1">Сюрприз — <span class="serif">на почту.</span></h1><p class="final-description">Подарочная карта «Золотого яблока» ждёт тебя в PDF.<br>Куда отправить красивое письмо с подарком?</p><div class="delivery-card"><div class="delivery-file"><span class="pdf-icon" aria-hidden="true">PDF</span><div><strong>Твой подарок</strong><p>Подарочная карта · во вложении к письму</p></div><span aria-hidden="true">♡</span></div>${demo ? '<p class="demo-notice">Тестовый режим: PDF пока не добавлен. Настоящее письмо не отправляется.</p>' : ''}<form id="delivery-form"><label class="code-label" for="recipient-email">Твоя электронная почта</label><input class="email-input" id="recipient-email" name="email" type="email" autocomplete="email" maxlength="254" placeholder="name@example.com" required><label class="code-label" for="confirm-email">Повтори адрес, чтобы подарок не потерялся</label><input class="email-input" id="confirm-email" name="confirmEmail" type="email" autocomplete="off" maxlength="254" placeholder="Тот же адрес ещё раз" required><button class="primary" type="submit">Проверить адрес <span aria-hidden="true">↗</span></button></form><div id="delivery-confirm" hidden><p class="hint">Письмо с PDF отправим сюда:</p><p id="confirmed-address" class="confirmed-address"></p><div class="final-actions"><button class="primary" id="send-pdf" type="button">${demo ? 'Посмотреть тестовое письмо' : 'Отправить подарок'} <span aria-hidden="true">↗</span></button><button class="secondary" id="edit-email" type="button">Изменить адрес</button></div></div><p id="delivery-feedback" class="feedback" role="status"></p><details class="mail-preview"><summary>Как выглядит письмо</summary><iframe title="Письмо с подарком" id="email-preview" sandbox=""></iframe></details><p class="hint">Адрес используем только для доставки подарка. Проверь его перед отправкой.</p></div>`;
+  $('#email-preview').srcdoc = preview.html;
+  let email = '';
+  let sending = false;
+  $('#delivery-form').addEventListener('submit', event => {
+    event.preventDefault();
     try {
-      await navigator.clipboard.writeText(card.cardNumber);
-      if (!$('#final-feedback')) return;
-      $('#final-feedback').textContent = card.demo ? 'Тестовый номер скопирован.' : 'Номер карты скопирован.';
-      playNote();
+      const first = normalizeEmail($('#recipient-email').value);
+      const second = normalizeEmail($('#confirm-email').value);
+      if (first !== second) throw new Error('mismatch');
+      email = first;
+      $('#confirmed-address').textContent = email;
+      $('#delivery-form').hidden = true;
+      $('#delivery-confirm').hidden = false;
+      $('#delivery-feedback').textContent = '';
+      $('#send-pdf').focus();
     } catch {
-      if (!$('#final-feedback')) return;
-      $('#final-feedback').textContent = `Браузер не разрешил копирование. Номер: ${card.cardNumber}. Его можно выделить вручную.`;
+      $('#delivery-feedback').textContent = 'Проверь адреса: оба должны быть одинаковыми и без опечаток.';
     }
   });
-  $('#download').addEventListener('click', downloadCard);
+  $('#edit-email').addEventListener('click', () => {
+    $('#delivery-form').hidden = false;
+    $('#delivery-confirm').hidden = true;
+    $('#recipient-email').focus();
+  });
+  $('#send-pdf').addEventListener('click', async () => {
+    if (sending) return;
+    if (demo) {
+      $('.mail-preview').open = true;
+      $('#delivery-feedback').textContent = 'Это предпросмотр. Письмо не отправлялось.';
+      return;
+    }
+    sending = true;
+    const button = $('#send-pdf');
+    const edit = $('#edit-email');
+    const version = renderVersion;
+    button.disabled = true;
+    edit.disabled = true;
+    button.textContent = 'Отправляем подарок…';
+    try {
+      const result = await client.send(email, email);
+      if (version !== renderVersion || currentStep !== 6) return;
+      showDeliverySuccess(result.recipient);
+    } catch {
+      if (version !== renderVersion || currentStep !== 6) return;
+      // Checking status is safe; resending after an SMTP timeout is not.
+      showDeliveryError('Не удалось подтвердить отправку. Проверь почту. Нажми «Проверить ещё раз», чтобы уточнить статус, или обратись к отправителю подарка.');
+    }
+  });
   if (focus) {
     $('#final-title').focus();
     window.scrollTo({ top: 0, behavior: 'instant' });
     celebrate();
   }
-}
-
-function downloadCard() {
-  if (!revealedCard) return;
-  const card = revealedCard;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="680" viewBox="0 0 1080 680"><rect width="1080" height="680" rx="35" fill="#dcf982"/><g fill="#161919" font-family="Arial,sans-serif"><text x="65" y="100" font-size="38" font-weight="bold">ЗОЛОТОЕ ЯБЛОКО</text><text x="65" y="145" font-size="20">${card.demo ? 'ТЕСТОВАЯ ПОДАРОЧНАЯ КАРТА' : 'ПОДАРОЧНАЯ КАРТА'}</text><text x="65" y="330" font-size="110" font-weight="bold">${escapeMarkup(card.amount)} ₽</text><text x="65" y="430" font-size="28">Номер: ${escapeMarkup(card.cardNumber)}</text><text x="65" y="480" font-size="28">PIN: ${escapeMarkup(card.pin)}</text><text x="65" y="565" font-size="23" font-weight="bold">${card.demo ? 'DEMO — НЕ ДЛЯ ОПЛАТЫ' : 'ТВОЙ ЛИЧНЫЙ ПОДАРОК'}</text><text x="65" y="610" font-size="20">${card.demo ? 'Номер и PIN вымышлены. Это не действующий сертификат.' : 'Сохрани номер и PIN для себя.'}</text></g></svg>`;
-  const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }));
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = card.demo ? 'gift-card-demo.svg' : 'gift-card.svg';
-  link.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-  $('#final-feedback').textContent = 'Карта подготовлена для сохранения.';
 }
 
 function celebrate() {

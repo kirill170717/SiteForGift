@@ -1,0 +1,11 @@
+{$GIFT_API_HOST} {
+    request_body {
+        max_size 2KB
+    }
+    header {
+        Strict-Transport-Security "max-age=31536000"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "no-referrer"
+    }
+    reverse_proxy delivery:8787
+}
