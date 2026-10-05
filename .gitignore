@@ -2,3 +2,8 @@ dist/
 node_modules/
 .DS_Store
 *.log
+.private/
+.env
+.env.*
+!.env.example
+*.key

@@ -13,10 +13,10 @@ export function normalizeCode(value) {
   return value.trim();
 }
 
-export function readProgress(storage) {
+export function readProgress(storage, key = STORAGE_KEY) {
   try {
     storage ??= globalThis.localStorage;
-    const value = storage.getItem(STORAGE_KEY);
+    const value = storage.getItem(key);
     if (value === null || !/^(?:-1|[0-6])$/.test(value)) return -1;
     const step = Number(value);
     return Number.isInteger(step) && step >= -1 && step <= 6 ? step : -1;
@@ -25,10 +25,10 @@ export function readProgress(storage) {
   }
 }
 
-export function writeProgress(step, storage) {
+export function writeProgress(step, storage, key = STORAGE_KEY) {
   try {
     storage ??= globalThis.localStorage;
-    storage.setItem(STORAGE_KEY, String(step));
+    storage.setItem(key, String(step));
     return true;
   } catch {
     return false;
