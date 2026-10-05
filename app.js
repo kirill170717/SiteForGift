@@ -1,7 +1,13 @@
-import { CONFIG, STEP_NAMES, readProgress, writeProgress, normalizeCode } from './quest.js';
+import { CONFIG, STEP_NAMES, STORAGE_KEY, readProgress, writeProgress, normalizeCode } from './quest.js';
+import { getGiftAccess, loadPrivateGift } from './gift-vault.js';
+import { escapeMarkup } from './gift-crypto.js';
 
 const $ = (selector) => document.querySelector(selector);
-let currentStep = readProgress();
+const giftAccess = getGiftAccess();
+const progressKey = giftAccess.mode === 'demo' ? STORAGE_KEY : `${STORAGE_KEY}:${giftAccess.access?.id ?? 'invalid'}`;
+let currentStep = readProgress(undefined, progressKey);
+let revealedCard = null;
+let renderVersion = 0;
 let soundEnabled = false;
 let audio;
 let scanTimer;
@@ -42,7 +48,7 @@ function feedback(message) {
 function advance() {
   clearInterval(scanTimer);
   currentStep += 1;
-  writeProgress(currentStep);
+  writeProgress(currentStep, undefined, progressKey);
   playNote();
   render(true);
 }
@@ -52,6 +58,8 @@ function heading(icon, title, description) {
 }
 
 function render(focus = false) {
+  renderVersion += 1;
+  revealedCard = null;
   clearInterval(scanTimer);
   $('#intro').hidden = currentStep !== -1;
   $('#quest').hidden = currentStep < 0 || currentStep > 5;
@@ -142,15 +150,41 @@ function startScan() {
   }, 100);
 }
 
-function renderFinal(focus) {
-  $('#final').innerHTML = `<div class="eyebrow" style="justify-content:center"><span class="status-dot"></span> МИССИЯ ВЫПОЛНЕНА</div><h1 id="final-title" tabindex="-1">А теперь — <span class="serif">для себя.</span></h1><p class="final-description">Пусть это будет что-то, от чего загорятся глаза.<br>Ты заслуживаешь приятных вещей. Просто потому, что ты — это ты.</p><div class="certificate"><div class="certificate-top"><span class="certificate-brand">ЗОЛОТОЕ<br>ЯБЛОКО</span><span class="test-stamp">DEMO / НЕ ДЛЯ ОПЛАТЫ</span></div><div class="certificate-value">${CONFIG.amount} ₽</div><div class="certificate-note">Тестовая подарочная карта<br>Для репетиции самого приятного момента</div><div class="certificate-code"><span>Номер карты</span><code>${CONFIG.cardNumber}</code></div><div class="certificate-code"><span>Тестовый PIN</span><code>${CONFIG.pin}</code></div></div><div class="final-actions"><button class="primary" id="copy" type="button">Скопировать номер <span aria-hidden="true">↗</span></button><button class="secondary" id="download" type="button">Сохранить демо-карту ↓</button></div><p class="feedback" id="final-feedback" role="status"></p><p class="hint">Это демонстрация подарка, а не действующий сертификат магазина. Номер и PIN вымышлены. Оплатить покупки ими нельзя.</p>`;
+async function renderFinal(focus) {
+  const version = renderVersion;
+  if (giftAccess.mode === 'demo') {
+    showCard({ amount: CONFIG.amount, cardNumber: CONFIG.cardNumber, pin: CONFIG.pin, demo: true }, focus);
+    return;
+  }
+  $('#final').innerHTML = `<div class="eyebrow" style="justify-content:center">ТВОЙ ЛИЧНЫЙ ПОДАРОК</div><h1 id="final-title" tabindex="-1">Открываем <span class="serif">сюрприз.</span></h1><p class="final-description" role="status">Проверяем личную ссылку…</p>`;
+  if (focus) $('#final-title').focus();
+  try {
+    const card = await loadPrivateGift(giftAccess.access);
+    if (version !== renderVersion || currentStep !== 6) return;
+    showCard(card, focus);
+  } catch {
+    if (version !== renderVersion || currentStep !== 6) return;
+    $('#final').innerHTML = `<div class="eyebrow" style="justify-content:center">ЛИЧНЫЙ ПОДАРОК</div><h1 id="final-title" tabindex="-1">Нужна <span class="serif">твоя ссылка.</span></h1><p class="final-description" role="alert">Подарок не удалось открыть. Проверь интернет и полную личную ссылку из сообщения отправителя.</p><button class="primary" id="retry-gift" type="button">Попробовать ещё раз <span aria-hidden="true">↗</span></button><p class="hint">Если ссылка потерялась или повреждена, попроси отправителя прислать её заново.</p>`;
+    $('#retry-gift').addEventListener('click', () => renderFinal(true));
+    if (focus) $('#final-title').focus();
+  }
+}
+
+function showCard(card, focus) {
+  revealedCard = card;
+  const stamp = card.demo ? 'DEMO / НЕ ДЛЯ ОПЛАТЫ' : 'ТВОЙ ЛИЧНЫЙ ПОДАРОК';
+  const note = card.demo ? 'Тестовая подарочная карта<br>Для репетиции самого приятного момента' : 'Подарочная карта<br>Выбери что-то, что порадует именно тебя';
+  const hint = card.demo ? 'Это демонстрация подарка, а не действующий сертификат магазина. Номер и PIN вымышлены. Оплатить покупки ими нельзя.' : 'Сохрани карту и PIN для себя. Условия использования подарочной карты уточняй у магазина.';
+  $('#final').innerHTML = `<div class="eyebrow" style="justify-content:center"><span class="status-dot"></span> МИССИЯ ВЫПОЛНЕНА</div><h1 id="final-title" tabindex="-1">А теперь — <span class="serif">для себя.</span></h1><p class="final-description">Пусть это будет что-то, от чего загорятся глаза.<br>Ты заслуживаешь приятных вещей. Просто потому, что ты — это ты.</p><div class="certificate"><div class="certificate-top"><span class="certificate-brand">ЗОЛОТОЕ<br>ЯБЛОКО</span><span class="test-stamp">${stamp}</span></div><div class="certificate-value">${escapeMarkup(card.amount)} ₽</div><div class="certificate-note">${note}</div><div class="certificate-code"><span>Номер карты</span><code>${escapeMarkup(card.cardNumber)}</code></div><div class="certificate-code"><span>${card.demo ? 'Тестовый PIN' : 'PIN'}</span><code>${escapeMarkup(card.pin)}</code></div></div><div class="final-actions"><button class="primary" id="copy" type="button">Скопировать номер <span aria-hidden="true">↗</span></button><button class="secondary" id="download" type="button">${card.demo ? 'Сохранить демо-карту' : 'Сохранить карту'} ↓</button></div><p class="feedback" id="final-feedback" role="status"></p><p class="hint">${hint}</p>`;
   $('#copy').addEventListener('click', async () => {
     try {
-      await navigator.clipboard.writeText(CONFIG.cardNumber);
-      $('#final-feedback').textContent = 'Тестовый номер скопирован.';
+      await navigator.clipboard.writeText(card.cardNumber);
+      if (!$('#final-feedback')) return;
+      $('#final-feedback').textContent = card.demo ? 'Тестовый номер скопирован.' : 'Номер карты скопирован.';
       playNote();
     } catch {
-      $('#final-feedback').textContent = `Браузер не разрешил копирование. Номер: ${CONFIG.cardNumber}. Его можно выделить вручную.`;
+      if (!$('#final-feedback')) return;
+      $('#final-feedback').textContent = `Браузер не разрешил копирование. Номер: ${card.cardNumber}. Его можно выделить вручную.`;
     }
   });
   $('#download').addEventListener('click', downloadCard);
@@ -162,15 +196,16 @@ function renderFinal(focus) {
 }
 
 function downloadCard() {
-  // All interpolated values are fixed demo configuration, never user input.
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="680" viewBox="0 0 1080 680"><rect width="1080" height="680" rx="35" fill="#dcf982"/><g fill="#161919" font-family="Arial,sans-serif"><text x="65" y="100" font-size="38" font-weight="bold">ЗОЛОТОЕ ЯБЛОКО</text><text x="65" y="145" font-size="20">ТЕСТОВАЯ ПОДАРОЧНАЯ КАРТА</text><text x="65" y="330" font-size="110" font-weight="bold">${CONFIG.amount} ₽</text><text x="65" y="430" font-size="28">Номер: ${CONFIG.cardNumber}</text><text x="65" y="480" font-size="28">Тестовый PIN: ${CONFIG.pin}</text><text x="65" y="565" font-size="23" font-weight="bold">DEMO — НЕ ДЛЯ ОПЛАТЫ</text><text x="65" y="610" font-size="20">Номер и PIN вымышлены. Это не действующий сертификат.</text></g></svg>`;
+  if (!revealedCard) return;
+  const card = revealedCard;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="680" viewBox="0 0 1080 680"><rect width="1080" height="680" rx="35" fill="#dcf982"/><g fill="#161919" font-family="Arial,sans-serif"><text x="65" y="100" font-size="38" font-weight="bold">ЗОЛОТОЕ ЯБЛОКО</text><text x="65" y="145" font-size="20">${card.demo ? 'ТЕСТОВАЯ ПОДАРОЧНАЯ КАРТА' : 'ПОДАРОЧНАЯ КАРТА'}</text><text x="65" y="330" font-size="110" font-weight="bold">${escapeMarkup(card.amount)} ₽</text><text x="65" y="430" font-size="28">Номер: ${escapeMarkup(card.cardNumber)}</text><text x="65" y="480" font-size="28">PIN: ${escapeMarkup(card.pin)}</text><text x="65" y="565" font-size="23" font-weight="bold">${card.demo ? 'DEMO — НЕ ДЛЯ ОПЛАТЫ' : 'ТВОЙ ЛИЧНЫЙ ПОДАРОК'}</text><text x="65" y="610" font-size="20">${card.demo ? 'Номер и PIN вымышлены. Это не действующий сертификат.' : 'Сохрани номер и PIN для себя.'}</text></g></svg>`;
   const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }));
   const link = document.createElement('a');
   link.href = url;
-  link.download = 'gift-card-demo.svg';
+  link.download = card.demo ? 'gift-card-demo.svg' : 'gift-card.svg';
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
-  $('#final-feedback').textContent = 'Демо-карта подготовлена для сохранения.';
+  $('#final-feedback').textContent = 'Карта подготовлена для сохранения.';
 }
 
 function celebrate() {
@@ -200,7 +235,17 @@ $('#confirm-reset').addEventListener('click', () => {
   $('#reset-dialog').close();
   clearInterval(scanTimer);
   currentStep = -1;
-  writeProgress(currentStep);
+  writeProgress(currentStep, undefined, progressKey);
   render(true);
 });
+if (giftAccess.mode !== 'demo') {
+  $('.demo-label').textContent = 'ЛИЧНАЯ МИССИЯ';
+  $('.footer > span:last-child').textContent = '01 / ДЛЯ ТЕБЯ';
+  $('.brand').addEventListener('click', event => {
+    event.preventDefault();
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  });
+}
+// A newly pasted private link must start a fresh access context.
+window.addEventListener('hashchange', () => location.reload());
 render();

@@ -25,4 +25,5 @@ const server = http.createServer(async (request, response) => {
     response.writeHead(404).end('Not found');
   }
 });
-server.listen(4173, '127.0.0.1', () => console.log('Gift Bureau: http://127.0.0.1:4173'));
+const port = Number(process.env.GIFT_PORT ?? 4173);
+server.listen(port, '127.0.0.1', () => console.log(`Gift Bureau: http://127.0.0.1:${server.address().port}`));
