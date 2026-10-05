@@ -162,6 +162,8 @@ async function renderFinal(focus) {
   if (giftAccess.mode === 'private') {
     try {
       client = await createDeliveryClient(giftAccess.access);
+      if (version !== renderVersion || currentStep !== 6) return;
+      if (client.handoffUrl) { showGoogleDelivery(client.handoffUrl); return; }
       const result = await client.status();
       if (version !== renderVersion || currentStep !== 6) return;
       preview = result.preview;
@@ -175,6 +177,12 @@ async function renderFinal(focus) {
     }
   }
   showDeliveryForm(client, preview, focus);
+}
+
+function showGoogleDelivery(url) {
+  $('#final').innerHTML = `<div class="eyebrow" style="justify-content:center"><span class="status-dot"></span> МИССИЯ ВЫПОЛНЕНА</div><h1 id="final-title" tabindex="-1">Сюрприз — <span class="serif">на почту.</span></h1><p class="final-description">Осталось указать почту для подарка.<br>Открой форму, проверь адрес и подтверди отправку PDF.</p><a class="primary" id="google-delivery" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">Получить письмо с подарком <span aria-hidden="true">↗</span></a><p class="hint">Форма откроется на странице Google. Регистрация получателя не нужна.</p>`;
+  $('#google-delivery').href = url;
+  $('#final-title').focus();
 }
 
 function showDeliveryError(message) {

@@ -25,6 +25,7 @@ export async function createDeliveryClient(access, fetcher = fetch) {
   const response = await fetcher(new URL('delivery-config.json', import.meta.url), { cache: 'no-store', referrerPolicy: 'no-referrer' });
   if (!response.ok) throw new Error('NOT_CONFIGURED');
   const config = await response.json();
+  if (config.googleScriptUrl) return { handoffUrl: googleDeliveryUrl(config.googleScriptUrl, access) };
   if (!config.apiUrl) throw new Error('NOT_CONFIGURED');
   const base = new URL(config.apiUrl);
   if (base.protocol !== 'https:' && !(base.protocol === 'http:' && ['127.0.0.1', 'localhost'].includes(base.hostname))) throw new Error('NOT_CONFIGURED');
@@ -40,4 +41,12 @@ export async function createDeliveryClient(access, fetcher = fetch) {
     return payload;
   }
   return { status: () => request('GET'), send: (email, confirmEmail) => request('POST', { email: normalizeEmail(email), confirmEmail: normalizeEmail(confirmEmail) }) };
+}
+
+export function googleDeliveryUrl(address, access) {
+  const url = new URL(address);
+  if (url.protocol !== 'https:' || url.hostname !== 'script.google.com' || url.port || url.username || url.password || url.search || url.hash || !/^\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(url.pathname)) throw new Error('NOT_CONFIGURED');
+  if (parseDeliveryLink(`#delivery=${access?.id}&token=${access?.token}`).mode !== 'private') throw new Error('INVALID_LINK');
+  url.hash = new URLSearchParams({ delivery: access.id, token: access.token }).toString();
+  return url.href;
 }

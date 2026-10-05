@@ -27,6 +27,7 @@ jobs:
       - name: Check quest and build static files
         env:
           GIFT_DELIVERY_API_URL: ${{ vars.GIFT_DELIVERY_API_URL }}
+          GIFT_GOOGLE_SCRIPT_URL: ${{ vars.GIFT_GOOGLE_SCRIPT_URL }}
         run: |
           node --test
           node scripts/build.js

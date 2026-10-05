@@ -2,6 +2,7 @@ import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { renderGiftEmail } from '../email-template.js';
+import { googleFormPreview } from './google-form-preview.js';
 
 const root = process.cwd();
 const publicFiles = new Set(['/index.html', '/styles.css', '/app.js', '/quest.js', '/gift-crypto.js', '/gift-vault.js', '/email-template.js', '/delivery-client.js', '/assets/favicon.svg']);
@@ -10,8 +11,12 @@ const server = http.createServer(async (request, response) => {
   try {
     const pathname = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
     const publicPath = pathname === '/' ? '/index.html' : pathname;
+    if (publicPath === '/google-form-preview.html') {
+      response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }).end(await googleFormPreview());
+      return;
+    }
     if (publicPath === '/delivery-config.json') {
-      response.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({ apiUrl: process.env.GIFT_DELIVERY_API_URL || 'http://127.0.0.1:8787' }));
+      response.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({ apiUrl: process.env.GIFT_DELIVERY_API_URL || 'http://127.0.0.1:8787', googleScriptUrl: process.env.GIFT_GOOGLE_SCRIPT_URL || '' }));
       return;
     }
     if (publicPath === '/email-preview.html') {

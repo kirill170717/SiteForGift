@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><title>Бюро подарков — доставка PDF</title><base target="_top"><meta name="referrer" content="no-referrer">
+<style>
+*{box-sizing:border-box}body{margin:0;background:#161919;color:#f4f2e9;font:15px/1.6 Arial,sans-serif;padding:32px 20px}main{max-width:520px;margin:0 auto}.brand{font-size:11px;letter-spacing:2px;font-weight:bold}.brand b{color:#dcf982;font-size:25px;vertical-align:middle;margin-right:10px}.eyebrow{color:#dcf982;font-size:10px;letter-spacing:2px;margin-top:42px}h1{font-size:44px;line-height:1.08;font-weight:normal;letter-spacing:-1px;margin:16px 0 24px}h1 span{font-family:Georgia,serif;color:#dcf982}.description,.hint{color:#a7aaa1}.card{background:#1e2320;border:1px solid #343a35;border-radius:16px;padding:24px;margin-top:28px}.file{border-bottom:1px solid #343a35;padding-bottom:20px;margin-bottom:24px}.file strong{display:block}.file span{color:#a7aaa1;font-size:12px}label{display:block;color:#c8ccc1;font-size:12px;margin:16px 0 8px}input{width:100%;font:inherit;border:1px solid #59644f;border-radius:6px;background:#161919;color:#f4f2e9;padding:13px}button{font:inherit;cursor:pointer;border:0;border-radius:6px;padding:15px 20px;background:#dcf982;color:#161919;font-weight:bold;margin-top:22px}button:disabled{opacity:.6;cursor:wait}.secondary{background:transparent;color:#f4f2e9;border:1px solid #59644f;margin-left:8px}button:focus-visible,input:focus-visible{outline:3px solid #eabbd1;outline-offset:3px}.address{color:#dcf982;font-size:20px;overflow-wrap:anywhere}.hint{font-size:12px}.message{color:#eabbd1;white-space:pre-line}#confirmation[hidden],form[hidden],.card[hidden],button[hidden]{display:none}@media(max-width:400px){h1{font-size:37px}.card{padding:20px}.secondary{margin-left:0;display:block}}
+</style></head><body><main>
+<div class="brand"><b>✳</b> БЮРО ПОДАРКОВ</div><p class="eyebrow">МИССИЯ ВЫПОЛНЕНА</p>
+<h1>Сюрприз —<br><span>на почту.</span></h1><p class="description">Подарочная карта «Золотого яблока» — в PDF.<br>Куда отправить красивое письмо с подарком?</p>
+<p id="status" class="message" role="status">Проверяем личную ссылку…</p>
+<div class="card" id="card" hidden><div class="file"><strong>Твой подарок · PDF</strong><span>Оригинальная карта во вложении к письму</span></div>
+<form id="form"><label for="email">Твоя электронная почта</label><input id="email" type="email" autocomplete="email" required maxlength="254" placeholder="name@example.com">
+<label for="repeat">Повтори адрес, чтобы подарок не потерялся</label><input id="repeat" type="email" autocomplete="off" required maxlength="254" placeholder="Тот же адрес ещё раз"><button>Проверить адрес ↗</button></form>
+<div id="confirmation" hidden><p class="hint">Письмо с PDF отправим сюда:</p><p class="address" id="address"></p><button type="button" id="send">Отправить подарок ↗</button><button class="secondary" type="button" id="edit">Изменить адрес</button></div>
+<p class="hint">Адрес используем только для доставки подарка.</p></div><button id="check" type="button" hidden>Проверить статус</button>
+</main><script>
+'use strict';
+let access = null, sending = false;
+const $ = id => document.getElementById(id);
+function showStatus(result) {
+  $('check').disabled = false;
+  $('check').hidden = true;
+  $('card').hidden = result.status !== 'ready';
+  if (result.status === 'ready') {
+    sending = false;
+    $('send').disabled = $('edit').disabled = false;
+    $('form').hidden = false;
+    $('confirmation').hidden = true;
+    $('status').textContent = ''; return;
+  }
+  if (result.status === 'sent') {
+    $('status').textContent = 'Письмо с PDF принято почтовым сервисом для ' + result.recipient + '. Проверь входящие и папку «Спам».';
+  } else {
+    $('status').textContent = 'Статус отправки уточняется. Проверь почту или обратись к отправителю. Повторная отправка заблокирована.';
+    $('check').hidden = false;
+  }
+}
+function failed(error) {
+  $('check').disabled = false;
+  $('card').hidden = true;
+  $('status').textContent = error.message || 'Не удалось проверить отправку. Проверь почту и обратись к отправителю.';
+  $('check').hidden = false;
+}
+function checkStatus() {
+  if (!access) return;
+  $('check').disabled = true;
+  $('status').textContent = 'Проверяем подарок…';
+  google.script.run.withSuccessHandler(showStatus).withFailureHandler(failed).getGiftStatus(access);
+}
+$('form').addEventListener('submit', event => {
+  event.preventDefault();
+  const email = $('email').value.trim();
+  const repeat = $('repeat').value.trim();
+  if (email !== repeat) { $('status').textContent = 'Проверь адреса: они должны совпадать.'; return; }
+  $('status').textContent = '';
+  $('address').textContent = email;
+  $('form').hidden = true;
+  $('confirmation').hidden = false;
+  $('send').focus();
+});
+$('edit').addEventListener('click', () => { if(sending) return; $('form').hidden = false; $('confirmation').hidden = true; $('email').focus(); });
+$('send').addEventListener('click', () => {
+  if (sending || !access) return;
+  sending = true;
+  $('send').disabled = $('edit').disabled = true;
+  $('status').textContent = 'Отправляем подарок…';
+  google.script.run.withSuccessHandler(showStatus).withFailureHandler(failed).sendGift(access, $('email').value.trim(), $('repeat').value.trim());
+});
+$('check').addEventListener('click', checkStatus);
+google.script.url.getLocation(location => {
+  const values = new URLSearchParams(location.hash.replace(/^#/, ''));
+  if (values.getAll('delivery').length !== 1 || values.getAll('token').length !== 1 || !/^[a-f0-9]{32}$/.test(values.get('delivery') || '') || !/^[A-Za-z0-9_-]{43}$/.test(values.get('token') || '')) {
+    $('status').textContent = 'Нужна полная личная ссылка от отправителя подарка.'; return;
+  }
+  access = { id: values.get('delivery'), token: values.get('token') };
+  checkStatus();
+});
+</script></body></html>
