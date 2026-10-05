@@ -18,6 +18,8 @@ function fixture(options = {}) {
   const calls = [];
   const blob = { getBytes: () => [...(options.pdf ?? pdf)], setName(name) { this.name = name; return this; } };
   const scope = createContext({ PropertiesService: { getScriptProperties: () => properties },
+    Session: { getActiveUser: () => ({ getEmail: () => options.activeEmail ?? 'owner@example.com' }),
+      getEffectiveUser: () => ({ getEmail: () => 'owner@example.com' }) },
     Utilities: { DigestAlgorithm: { SHA_256: 'sha256' }, Charset: { UTF_8: 'utf8' }, computeDigest: (_, value) => [...createHash('sha256').update(value).digest()] },
     LockService: { getScriptLock: () => ({ tryLock: () => { if (locked) return false; locked = true; return true; }, releaseLock: () => { locked = false; } }) },
     DriveApp: { Access: { PRIVATE: 'private' }, getFileById: id => { assert.equal(id, 'TEST_private_drive_pdf_id'); return {
@@ -28,7 +30,7 @@ function fixture(options = {}) {
     } },
   });
   runInContext(source + '\n' + gift.setup, scope);
-  scope.configureGift_();
+  if (!options.skipSetup) scope.configureGift();
   return { scope, values, calls, blob, gift, access: { id: gift.id, token: gift.token } };
 }
 
@@ -42,6 +44,14 @@ test('Google delivery requires the exact token; revoked gifts expose no status',
   f.values.set(key, JSON.stringify({ ...JSON.parse(f.values.get(key)), revoked: true }));
   assert.throws(() => f.scope.getGiftStatus(f.access), /Подарок недоступен/);
   assert.equal(f.calls.length, 0);
+});
+
+test('runnable Google setup rejects anonymous and other users before writing properties', () => {
+  for (const activeEmail of ['', 'visitor@example.com']) {
+    const f = fixture({ skipSetup: true, activeEmail });
+    assert.throws(() => f.scope.configureGift(), /только владельцу/);
+    assert.equal(f.values.size, 0);
+  }
 });
 
 test('Google delivery attaches original private PDF once, including after script restart', () => {

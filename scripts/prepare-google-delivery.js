@@ -6,6 +6,8 @@ import { renderGiftEmail } from '../email-template.js';
 import { normalizeEmail } from '../delivery-client.js';
 import { digestToken } from '../server/delivery-store.js';
 
+export const CONFIGURE_GIFT_ENTRY = `function configureGift() {\n  const active = Session.getActiveUser().getEmail();\n  const effective = Session.getEffectiveUser().getEmail();\n  if (!active || active !== effective) throw new Error('Настройка доступна только владельцу в редакторе.');\n  configureGift_();\n}\n\n`;
+
 export function createGoogleGift(pdfId, email) {
   if (!/^[A-Za-z0-9_-]{10,200}$/.test(pdfId || '')) throw new Error('Invalid Drive file ID');
   const id = randomBytes(16).toString('hex');
@@ -14,7 +16,7 @@ export function createGoogleGift(pdfId, email) {
   const manifest = { tokenHash: digestToken(token), pdfId, subject: rendered.subject, text: rendered.text };
   if (Buffer.byteLength(JSON.stringify(manifest), 'utf8') > 8500) throw new Error('Email too large for Script Properties');
   const setup = `function configureGift_() {\n  const properties = PropertiesService.getScriptProperties();\n  const key = ${JSON.stringify('gift:' + id)};\n  if (properties.getProperty(key) || properties.getProperty(${JSON.stringify('state:' + id)})) throw new Error('Gift already configured; never reset delivery state');\n  properties.setProperty(key, ${JSON.stringify(JSON.stringify(manifest))});\n}\n`;
-  return { id, token, setup, html: rendered.html };
+  return { id, token, setup: CONFIGURE_GIFT_ENTRY + setup, html: rendered.html };
 }
 
 export async function buildGoogleCode() {
