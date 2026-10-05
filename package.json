@@ -1,0 +1,11 @@
+{
+  "name": "gift-bureau-demo",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node scripts/serve.js",
+    "test": "node --test",
+    "build": "node scripts/build.js"
+  }
+}
