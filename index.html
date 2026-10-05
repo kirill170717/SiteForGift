@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#161919">
+  <meta name="description" content="Маленькое приключение. Большой повод улыбнуться. Пройди секретный квест и открой свой подарок.">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Бюро подарков — кое-что для тебя</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <div class="ambient" aria-hidden="true"></div>
+  <header class="header">
+    <a class="brand" href="./" aria-label="Бюро подарков — главная"><span class="brand-symbol" aria-hidden="true">✳</span><span>БЮРО<br>ПОДАРКОВ</span></a>
+    <div class="header-actions"><span class="demo-label">ТЕСТОВАЯ МИССИЯ</span><button class="sound-button" id="sound" type="button" aria-pressed="false" aria-label="Включить звук">Звук: выкл.</button></div>
+  </header>
+  <main id="main">
+    <section class="intro" id="intro" aria-labelledby="intro-title">
+      <div class="intro-copy">
+        <div class="eyebrow"><span class="status-dot"></span> ОТДЕЛ ПРИЯТНЫХ НЕОЖИДАННОСТЕЙ</div>
+        <h1 id="intro-title">Для тебя<br>кое-что <span class="serif">есть.</span></h1>
+        <p class="intro-description">Хорошие подарки любят немного интриги.<br>Твой уже ждёт в секретном хранилище.</p>
+        <button class="primary" id="start" type="button">Начать приключение <span aria-hidden="true">↗</span></button>
+        <p class="intro-note">5 маленьких проверок · 3–5 минут · всё для тебя</p>
+      </div>
+      <div class="hero-art" aria-hidden="true">
+        <div class="orbit orbit-one"></div><div class="orbit orbit-two"></div>
+        <span class="art-spark spark-one">✦</span><span class="art-spark spark-two">✧</span>
+        <div class="gift-object"><div class="gift-bow"><i></i><i></i></div><div class="gift-lid"></div><div class="gift-body"><span>?</span></div><div class="gift-ribbon"></div></div>
+        <div class="art-tag"><span class="status-dot"></span> АДРЕСАТ: ТЫ</div>
+        <div class="art-caption">СОДЕРЖИМОЕ ЗАСЕКРЕЧЕНО<br><span>до первой улыбки</span></div>
+      </div>
+      <div class="intro-bottom"><span>ПОДАРОК № 001</span><span>СДЕЛАНО С ТЕПЛОМ <span aria-hidden="true">♡</span></span><span>ОЖИДАЕТ ОТКРЫТИЯ</span></div>
+    </section>
+    <section class="quest" id="quest" hidden aria-label="Квест">
+      <aside class="quest-sidebar"><div class="eyebrow">ТВОЯ МИССИЯ</div><h2>Добраться<br>до <span class="serif">сюрприза.</span></h2><p>Немного любопытства.<br>Капелька магии. И ты.</p><ol id="steps" class="steps"></ol><div class="clearance"><span>Доступ к подарку</span><strong id="percent">0%</strong><div class="progress-track"><div id="progress"></div></div></div></aside>
+      <div class="quest-panel"><div class="panel-meta"><span id="stage-label"></span><span class="status-dot"></span></div><div id="stage"></div><p id="feedback" role="status" class="feedback"></p></div>
+    </section>
+    <section class="final" id="final" hidden aria-labelledby="final-title"></section>
+    <noscript><p class="noscript">Для квеста нужен JavaScript. Включи его в браузере и обнови страницу.</p></noscript>
+  </main>
+  <footer class="footer"><span>МАЛЕНЬКОЕ ПРИКЛЮЧЕНИЕ. БОЛЬШОЙ ПОВОД УЛЫБНУТЬСЯ.</span><button id="reset" type="button" hidden>Начать заново</button><span>01 / DEMO</span></footer>
+  <dialog id="reset-dialog"><h2>Начать с чистого листа?</h2><p>Прогресс этой миссии будет сброшен.</p><div class="dialog-actions"><button class="secondary" id="cancel-reset" type="button">Продолжить квест</button><button class="primary" id="confirm-reset" type="button">Начать заново</button></div></dialog>
+  <div id="confetti" class="confetti" aria-hidden="true"></div>
+</body>
+</html>
