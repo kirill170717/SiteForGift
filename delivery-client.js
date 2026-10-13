@@ -1,3 +1,5 @@
+export const DEFAULT_GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw1bXFyIHKG1I7xGY7-NPjiYdKXQIThTbxrK3b0vw6jkqw1wn7YzfYu6CLLmGut-j_9/exec';
+
 export function parseDeliveryLink(hash) {
   const params = new URLSearchParams(hash.replace(/^#/, ''));
   if (!params.has('delivery') && !params.has('token')) {

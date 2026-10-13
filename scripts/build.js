@@ -3,7 +3,7 @@ import path from 'node:path';
 import { validateEnvelope } from '../gift-crypto.js';
 import { renderGiftEmail } from '../email-template.js';
 import { writeFile } from 'node:fs/promises';
-import { googleDeliveryUrl } from '../delivery-client.js';
+import { googleDeliveryUrl, DEFAULT_GOOGLE_SCRIPT_URL } from '../delivery-client.js';
 
 // Publish only the website, never repository metadata or developer files.
 const outputDir = path.resolve('dist');
@@ -17,7 +17,7 @@ for (const file of ['index.html', 'styles.css', 'app.js', 'quest.js', 'gift-cryp
 await copyFile('assets/favicon.svg', 'dist/assets/favicon.svg');
 await copyFile('.nojekyll', 'dist/.nojekyll');
 const apiUrl = process.env.GIFT_DELIVERY_API_URL || '';
-const googleScriptUrl = process.env.GIFT_GOOGLE_SCRIPT_URL || '';
+const googleScriptUrl = process.env.GIFT_GOOGLE_SCRIPT_URL ?? (apiUrl ? '' : DEFAULT_GOOGLE_SCRIPT_URL);
 if (googleScriptUrl) googleDeliveryUrl(googleScriptUrl, { id: '0'.repeat(32), token: 'A'.repeat(43) });
 if (apiUrl && googleScriptUrl) throw new Error('Choose one delivery provider');
 if (apiUrl && new URL(apiUrl).protocol !== 'https:') throw new Error('Delivery API must use HTTPS');

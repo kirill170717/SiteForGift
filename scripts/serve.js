@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { renderGiftEmail } from '../email-template.js';
 import { googleFormPreview } from './google-form-preview.js';
+import { DEFAULT_GOOGLE_SCRIPT_URL } from '../delivery-client.js';
 
 const root = process.cwd();
 const publicFiles = new Set(['/index.html', '/styles.css', '/app.js', '/quest.js', '/gift-crypto.js', '/gift-vault.js', '/email-template.js', '/delivery-client.js', '/assets/favicon.svg']);
@@ -16,7 +17,9 @@ const server = http.createServer(async (request, response) => {
       return;
     }
     if (publicPath === '/delivery-config.json') {
-      response.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({ apiUrl: process.env.GIFT_DELIVERY_API_URL || 'http://127.0.0.1:8787', googleScriptUrl: process.env.GIFT_GOOGLE_SCRIPT_URL || '' }));
+      const apiUrl = process.env.GIFT_DELIVERY_API_URL || '';
+      const googleScriptUrl = process.env.GIFT_GOOGLE_SCRIPT_URL ?? (apiUrl ? '' : DEFAULT_GOOGLE_SCRIPT_URL);
+      response.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({ apiUrl, googleScriptUrl }));
       return;
     }
     if (publicPath === '/email-preview.html') {
