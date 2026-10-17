@@ -1,6 +1,6 @@
 // Demo values are intentionally public. Never put real gift credentials here.
 export const CONFIG = Object.freeze({
-  accessCode: '0418',
+  accessCode: '0309',
   amount: '5 000',
   cardNumber: 'DEMO-0000-0000-2026',
   pin: '0000',

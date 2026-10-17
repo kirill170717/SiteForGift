@@ -22,7 +22,8 @@ test('blocked browser storage does not prevent playing', () => {
   assert.equal(writeProgress(2, blocked), false);
 });
 test('access code keeps its leading zero and gift credentials are explicitly fake', () => {
-  assert.equal(normalizeCode(' 0418 '), CONFIG.accessCode);
-  assert.notEqual(normalizeCode('418'), CONFIG.accessCode);
+  assert.equal(normalizeCode(' 0309 '), CONFIG.accessCode);
+  assert.notEqual(normalizeCode('309'), CONFIG.accessCode);
+  assert.notEqual(normalizeCode('0418'), CONFIG.accessCode);
   assert.match(CONFIG.cardNumber, /^DEMO-/);
 });
